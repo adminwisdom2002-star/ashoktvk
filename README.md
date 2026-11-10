@@ -31,6 +31,6 @@ The `render.yaml` Blueprint runs the Express API and serves the React app from t
 
 The free Render service may sleep when idle and uses ephemeral storage. Petition and admin changes can be lost when the service restarts or is redeployed. Use persistent storage before relying on this service for permanent public records.
 
-## GitHub Pages Preview
+## GitHub Pages Link
 
-The GitHub Pages workflow publishes a read-only frontend preview at `https://adminwisdom2002-star.github.io/ashoktvk/`. It uses sample data from the app; petition submissions, AI generation, admin tools, and live server updates require the Express backend and are not available in this preview. Pushes to `main` trigger a new deployment.
+The GitHub Pages URL redirects to the full live app at `https://ashoktvk.onrender.com/`. Pushes to `main` redeploy the redirect.
