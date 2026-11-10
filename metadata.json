@@ -1,0 +1,6 @@
+{
+  "name": "விளங்காடு கிராமம் மக்கள் குறைதீர்வு மையம் - அசோக்",
+  "description": "விளங்காடு கிராம மக்களின் குறைகளைக் பதிவு செய்து அரசு அதிகாரிகளிடம் சமர்ப்பிக்கவும், AI உதவியுடன் மனுக்களை உருவாக்கவும் அசோக் (சமூக ஆர்வலர்) வழங்கும் மக்கள் சேவை மையம்.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
