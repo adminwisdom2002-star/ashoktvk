@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, LogOut, Save, Shield, Trash2 } from 'lucide-react';
-import { Petition, PetitionStatus, WardInfo } from '../types';
+import { AlertCircle, LogOut, Plus, Save, Shield, Trash2 } from 'lucide-react';
+import { ISSUE_CATEGORIES, Petition, PetitionStatus, WardInfo } from '../types';
 
 interface AdminPanelProps {
   petitions: Petition[];
@@ -24,6 +24,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ petitions, wards, onRefr
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingPetition, setIsAddingPetition] = useState(false);
 
   useEffect(() => {
     fetch('/api/admin/session')
@@ -105,6 +106,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ petitions, wards, onRefr
       await request(`/api/admin/petitions/${encodeURIComponent(petition.id)}`, 'PATCH', {
         title: formData.get('title'),
         description: formData.get('description'),
+        category: formData.get('category'),
+        wardNo: Number(formData.get('wardNo')),
+        streetName: formData.get('streetName'),
+        citizenName: formData.get('citizenName'),
+        phone: formData.get('phone'),
         status: formData.get('status'),
         officialNote: formData.get('officialNote')
       });
@@ -112,6 +118,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ petitions, wards, onRefr
       setSuccessMessage(`${petition.trackingNo} மனு விவரங்கள் சேமிக்கப்பட்டன.`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'மனு விவரங்களைச் சேமிக்க முடியவில்லை.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const createPetition = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    setIsSaving(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+    try {
+      const petition = await request('/api/admin/petitions', 'POST', {
+        title: formData.get('title'),
+        description: formData.get('description'),
+        category: formData.get('category'),
+        wardNo: Number(formData.get('wardNo')),
+        streetName: formData.get('streetName'),
+        citizenName: formData.get('citizenName'),
+        phone: formData.get('phone'),
+        status: formData.get('status'),
+        officialNote: formData.get('officialNote')
+      }) as Petition;
+      form.reset();
+      setIsAddingPetition(false);
+      await onRefresh();
+      setSuccessMessage(`${petition.trackingNo} மனு சேர்க்கப்பட்டது.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'மனுவைச் சேர்க்க முடியவில்லை.');
     } finally {
       setIsSaving(false);
     }
@@ -233,6 +269,67 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ petitions, wards, onRefr
         </div>
       ) : (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setIsAddingPetition(value => !value)}
+              className="inline-flex items-center gap-2 rounded-md bg-[#4a0000] px-3 py-2 text-sm font-bold text-white"
+            >
+              <Plus className="w-4 h-4" /> {isAddingPetition ? 'சேர்ப்பதை ரத்து செய்' : 'புதிய மனு சேர்க்க'}
+            </button>
+          </div>
+          {isAddingPetition && (
+            <form onSubmit={createPetition} className="space-y-3 rounded-xl border border-emerald-200 bg-white p-5 shadow-sm">
+              <h3 className="font-extrabold text-[#4a0000]">புதிய மனு</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-bold text-neutral-700">
+                  மனுதாரர் பெயர்
+                  <input name="citizenName" required maxLength={120} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  கைபேசி எண்
+                  <input name="phone" type="tel" required maxLength={20} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  வார்டு
+                  <select name="wardNo" required defaultValue={wards[0]?.wardNo} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal">
+                    {wards.map(ward => <option key={ward.wardNo} value={ward.wardNo}>வார்டு {ward.wardNo} · {ward.name}</option>)}
+                  </select>
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  வீதி
+                  <input name="streetName" required maxLength={200} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  புகார் வகை
+                  <select name="category" defaultValue="others" className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal">
+                    {ISSUE_CATEGORIES.map(category => <option key={category.value} value={category.value}>{category.label}</option>)}
+                  </select>
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  நிலை
+                  <select name="status" defaultValue="pending" className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal">
+                    {statusOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              </div>
+              <label className="block text-xs font-bold text-neutral-700">
+                தலைப்பு
+                <input name="title" required maxLength={200} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+              </label>
+              <label className="block text-xs font-bold text-neutral-700">
+                மனு விவரம்
+                <textarea name="description" required maxLength={5000} rows={3} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+              </label>
+              <label className="block text-xs font-bold text-neutral-700">
+                நிர்வாகக் குறிப்பு
+                <input name="officialNote" maxLength={2000} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+              </label>
+              <button disabled={isSaving || wards.length === 0} type="submit" className="inline-flex items-center gap-2 rounded-md bg-[#4a0000] px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
+                <Plus className="w-4 h-4" /> மனுவைச் சேர்க்க
+              </button>
+            </form>
+          )}
           {petitions.map(petition => (
             <form key={petition.id} onSubmit={event => savePetition(event, petition)} className="space-y-3 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -250,6 +347,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ petitions, wards, onRefr
                 <textarea name="description" required maxLength={5000} rows={3} defaultValue={petition.description} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-bold text-neutral-700">
+                  மனுதாரர் பெயர்
+                  <input name="citizenName" required maxLength={120} defaultValue={petition.citizenName} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  கைபேசி எண்
+                  <input name="phone" type="tel" required maxLength={20} defaultValue={petition.phone} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  வார்டு
+                  <select name="wardNo" required defaultValue={petition.wardNo} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal">
+                    {wards.map(ward => <option key={ward.wardNo} value={ward.wardNo}>வார்டு {ward.wardNo} · {ward.name}</option>)}
+                  </select>
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  வீதி
+                  <input name="streetName" required maxLength={200} defaultValue={petition.streetName} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal" />
+                </label>
+                <label className="block text-xs font-bold text-neutral-700">
+                  புகார் வகை
+                  <select name="category" defaultValue={petition.category} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal">
+                    {ISSUE_CATEGORIES.map(category => <option key={category.value} value={category.value}>{category.label}</option>)}
+                  </select>
+                </label>
                 <label className="block text-xs font-bold text-neutral-700">
                   நிலை
                   <select name="status" defaultValue={petition.status} className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-normal">
