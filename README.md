@@ -21,9 +21,15 @@ View your app in AI Studio: https://ai.studio/apps/6819a122-a4f7-4765-8081-22378
 
 ## Admin Dashboard
 
-Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and a long random `ADMIN_SESSION_SECRET` in `.env.local` (see [.env.example](.env.example)). Keep `.env.local` private and use a strong, unique password before deploying publicly. Admin sessions expire after eight hours.
+Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and a long random `ADMIN_SESSION_SECRET` in `.env.local` (see [.env.example](.env.example)). Keep `.env.local` private and use a strong, unique password before deploying publicly. Admin sessions expire after eight hours. The Render blueprint generates a unique admin password and session secret for the deployed service.
 
-The admin dashboard is available from the **நிர்வாகம்** navigation tab. Ward/street edits and complaint changes are saved in the ignored `data/app-state.json` file so they persist across server restarts.
+The admin dashboard is available from the **நிர்வாகம்** navigation tab. Ward/street edits and complaint changes are saved in the ignored `data/app-state.json` file.
+
+## Full App on Render
+
+The `render.yaml` Blueprint runs the Express API and serves the React app from the same Node.js service. In Render, create a new Blueprint from this repository and deploy it using the included free web-service configuration. The `/api/health` endpoint is used for health checks. Add `GEMINI_API_KEY` as a private Render environment variable to enable Gemini-powered petition drafts.
+
+The free Render service may sleep when idle and uses ephemeral storage. Petition and admin changes can be lost when the service restarts or is redeployed. Use persistent storage before relying on this service for permanent public records.
 
 ## GitHub Pages Preview
 
