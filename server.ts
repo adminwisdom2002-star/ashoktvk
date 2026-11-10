@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { INITIAL_PETITIONS, INITIAL_WARDS, INITIAL_HELPLINES, INITIAL_ANNOUNCEMENTS } from "./src/data/mockData";
-import { getIssueCategoryLabel, ISSUE_CATEGORIES, Petition, Comment, PetitionStatus } from "./src/types";
+import { getIssueCategoryLabel, ISSUE_CATEGORIES, Petition, Comment, IssueCategory, PetitionStatus } from "./src/types";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -54,6 +54,9 @@ const getCookie = (request: Request, name: string): string | undefined =>
     .map(part => part.trim())
     .find(part => part.startsWith(`${name}=`))
     ?.slice(name.length + 1);
+
+const isIssueCategory = (value: unknown): value is IssueCategory =>
+  ISSUE_CATEGORIES.some(item => item.value === value);
 
 async function startServer() {
   const app = express();
@@ -216,6 +219,83 @@ async function startServer() {
     }
   });
 
+  app.post("/api/admin/petitions", requireAdmin, async (req, res) => {
+    const {
+      title,
+      description,
+      category,
+      wardNo,
+      streetName,
+      citizenName,
+      phone,
+      status,
+      officialNote
+    } = req.body ?? {};
+    const numericWardNo = Number(wardNo);
+    const allowedStatuses: PetitionStatus[] = ["pending", "in_progress", "action_taken", "resolved"];
+    const ward = wards.find(item => item.wardNo === numericWardNo);
+    const phoneDigits = typeof phone === "string" ? phone.replace(/\D/g, "") : "";
+
+    if (
+      typeof title !== "string" || !title.trim() || title.length > 200 ||
+      typeof description !== "string" || !description.trim() || description.length > 5000 ||
+      !isIssueCategory(category) ||
+      !Number.isInteger(numericWardNo) || !ward ||
+      typeof streetName !== "string" || !streetName.trim() || streetName.length > 200 ||
+      typeof citizenName !== "string" || !citizenName.trim() || citizenName.length > 120 ||
+      typeof phone !== "string" || phoneDigits.length < 10 || phoneDigits.length > 15 ||
+      (status !== undefined && !allowedStatuses.includes(status)) ||
+      (officialNote !== undefined && (typeof officialNote !== "string" || officialNote.length > 2000))
+    ) {
+      return res.status(400).json({ error: "மனு விவரங்களைச் சரிபார்க்கவும்" });
+    }
+
+    let trackingNo = "";
+    for (let attempt = 0; attempt < 9000; attempt += 1) {
+      const candidate = `MS-ACH-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      if (!petitions.some(item => item.trackingNo === candidate)) {
+        trackingNo = candidate;
+        break;
+      }
+    }
+    if (!trackingNo) return res.status(409).json({ error: "மனு எண் உருவாக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்." });
+
+    const now = new Date().toISOString();
+    const newPetition: Petition = {
+      id: `pet-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      trackingNo,
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      wardNo: numericWardNo,
+      streetName: streetName.trim(),
+      citizenName: citizenName.trim(),
+      phone: phone.trim(),
+      status: status ?? "pending",
+      upvotes: 0,
+      createdAt: now,
+      updatedAt: now,
+      comments: [],
+      officialNote: typeof officialNote === "string" ? officialNote.trim() || undefined : undefined
+    };
+
+    petitions.unshift(newPetition);
+    ward.totalIssues += 1;
+    if (newPetition.status === "resolved") ward.resolvedIssues += 1;
+
+    try {
+      await saveAppState();
+      res.status(201).json(newPetition);
+    } catch (err) {
+      const createdIndex = petitions.findIndex(item => item.id === newPetition.id);
+      if (createdIndex >= 0) petitions.splice(createdIndex, 1);
+      ward.totalIssues -= 1;
+      if (newPetition.status === "resolved") ward.resolvedIssues -= 1;
+      console.error("Error creating admin petition:", err);
+      res.status(500).json({ error: "மனுவைச் சேர்க்க முடியவில்லை" });
+    }
+  });
+
   // POST Upvote Petition
   app.post("/api/petitions/:id/upvote", async (req, res) => {
     const p = petitions.find(item => item.id === req.params.id);
@@ -373,26 +453,60 @@ async function startServer() {
   app.patch("/api/admin/petitions/:id", requireAdmin, async (req, res) => {
     const petition = petitions.find(item => item.id === req.params.id);
     if (!petition) return res.status(404).json({ error: "மனு கிடைக்கவில்லை" });
-    const { title, description, status, officialNote } = req.body ?? {};
+    const { title, description, category, wardNo, streetName, citizenName, phone, status, officialNote } = req.body ?? {};
     const allowedStatuses: PetitionStatus[] = ["pending", "in_progress", "action_taken", "resolved"];
+    const numericWardNo = wardNo === undefined ? petition.wardNo : Number(wardNo);
+    const nextWard = wards.find(item => item.wardNo === numericWardNo);
+    const phoneDigits = typeof phone === "string" ? phone.replace(/\D/g, "") : "";
     if (
       (title !== undefined && (typeof title !== "string" || !title.trim() || title.length > 200)) ||
       (description !== undefined && (typeof description !== "string" || !description.trim() || description.length > 5000)) ||
+      (category !== undefined && !isIssueCategory(category)) ||
+      (wardNo !== undefined && (!Number.isInteger(numericWardNo) || !nextWard)) ||
+      (streetName !== undefined && (typeof streetName !== "string" || !streetName.trim() || streetName.length > 200)) ||
+      (citizenName !== undefined && (typeof citizenName !== "string" || !citizenName.trim() || citizenName.length > 120)) ||
+      (phone !== undefined && (typeof phone !== "string" || phoneDigits.length < 10 || phoneDigits.length > 15)) ||
       (status !== undefined && !allowedStatuses.includes(status)) ||
       (officialNote !== undefined && (typeof officialNote !== "string" || officialNote.length > 2000))
     ) {
       return res.status(400).json({ error: "மனு விவரங்களைச் சரிபார்க்கவும்" });
     }
 
+    const previousPetition = { ...petition };
+    const previousWard = wards.find(item => item.wardNo === petition.wardNo);
+    const previousWasResolved = petition.status === "resolved";
+    const nextStatus = status ?? petition.status;
+    if (wardNo !== undefined && numericWardNo !== petition.wardNo) {
+      if (previousWard) previousWard.totalIssues = Math.max(0, previousWard.totalIssues - 1);
+      if (previousWasResolved && previousWard) previousWard.resolvedIssues = Math.max(0, previousWard.resolvedIssues - 1);
+      nextWard!.totalIssues += 1;
+      if (nextStatus === "resolved") nextWard!.resolvedIssues += 1;
+    } else if (previousWasResolved !== (nextStatus === "resolved") && nextWard) {
+      nextWard.resolvedIssues = Math.max(0, nextWard.resolvedIssues + (nextStatus === "resolved" ? 1 : -1));
+    }
     if (title !== undefined) petition.title = title.trim();
     if (description !== undefined) petition.description = description.trim();
-    if (status !== undefined) petition.status = status;
+    if (category !== undefined) petition.category = category;
+    if (wardNo !== undefined) petition.wardNo = numericWardNo;
+    if (streetName !== undefined) petition.streetName = streetName.trim();
+    if (citizenName !== undefined) petition.citizenName = citizenName.trim();
+    if (phone !== undefined) petition.phone = phone.trim();
+    petition.status = nextStatus;
     if (officialNote !== undefined) petition.officialNote = officialNote.trim() || undefined;
     petition.updatedAt = new Date().toISOString();
     try {
       await saveAppState();
       res.json(petition);
     } catch (err) {
+      Object.assign(petition, previousPetition);
+      if (wardNo !== undefined && numericWardNo !== previousPetition.wardNo) {
+        if (previousWard) previousWard.totalIssues += 1;
+        if (previousWasResolved && previousWard) previousWard.resolvedIssues += 1;
+        if (nextWard) nextWard.totalIssues = Math.max(0, nextWard.totalIssues - 1);
+        if (nextStatus === "resolved" && nextWard) nextWard.resolvedIssues = Math.max(0, nextWard.resolvedIssues - 1);
+      } else if (previousWasResolved !== (nextStatus === "resolved") && nextWard) {
+        nextWard.resolvedIssues = Math.max(0, nextWard.resolvedIssues + (previousWasResolved ? 1 : -1));
+      }
       console.error("Error saving petition changes:", err);
       res.status(500).json({ error: "மனு மாற்றங்களைச் சேமிக்க முடியவில்லை" });
     }
@@ -402,11 +516,20 @@ async function startServer() {
     const petitionIndex = petitions.findIndex(item => item.id === req.params.id);
     if (petitionIndex < 0) return res.status(404).json({ error: "மனு கிடைக்கவில்லை" });
     const [deletedPetition] = petitions.splice(petitionIndex, 1);
+    const ward = wards.find(item => item.wardNo === deletedPetition.wardNo);
+    if (ward) {
+      ward.totalIssues = Math.max(0, ward.totalIssues - 1);
+      if (deletedPetition.status === "resolved") ward.resolvedIssues = Math.max(0, ward.resolvedIssues - 1);
+    }
     try {
       await saveAppState();
       res.json({ success: true });
     } catch (err) {
       petitions.splice(petitionIndex, 0, deletedPetition);
+      if (ward) {
+        ward.totalIssues += 1;
+        if (deletedPetition.status === "resolved") ward.resolvedIssues += 1;
+      }
       console.error("Error deleting petition:", err);
       res.status(500).json({ error: "மனுவை நீக்க முடியவில்லை" });
     }
