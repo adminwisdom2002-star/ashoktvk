@@ -24,3 +24,7 @@ View your app in AI Studio: https://ai.studio/apps/6819a122-a4f7-4765-8081-22378
 Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and a long random `ADMIN_SESSION_SECRET` in `.env.local` (see [.env.example](.env.example)). Keep `.env.local` private and use a strong, unique password before deploying publicly. Admin sessions expire after eight hours.
 
 The admin dashboard is available from the **நிர்வாகம்** navigation tab. Ward/street edits and complaint changes are saved in the ignored `data/app-state.json` file so they persist across server restarts.
+
+## GitHub Pages Preview
+
+The GitHub Pages workflow publishes a read-only frontend preview at `https://adminwisdom2002-star.github.io/ashoktvk/`. It uses sample data from the app; petition submissions, AI generation, admin tools, and live server updates require the Express backend and are not available in this preview. Pushes to `main` trigger a new deployment.
